@@ -1,0 +1,46 @@
+[[tool.poetry]]
+name = "vc-commit-helper"
+version = "0.1.0"
+description = "AI‑powered commit assistant for Git and SVN repositories"
+authors = ["Lutz.Pape@gmail.com"]
+license = "MIT"
+readme = "README.md"
+
+[project]
+name = "vc_commit_helper"
+version = "0.1.0"
+description = "AI‑powered commit assistant for Git and SVN repositories"
+authors = [
+    { name = "Lutz Pape", email = "Lutz.Pape@gmail.com" },
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+    "requests>=2.31.0",
+    "typing-extensions>=4.7.0",
+    "click>=8.1.7",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.0",
+    "pytest-mock>=3.12.0",
+]
+
+[project.scripts]
+aicheckin = "vc_commit_helper.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
