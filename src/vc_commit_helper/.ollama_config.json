@@ -1,0 +1,6 @@
+{
+  "base_url": "http://tray2.de-hbg02.nxp.com",
+  "port": 5050,
+  "model": "qwen3:30b",
+  "request_timeout": 60.0
+}

@@ -16,21 +16,39 @@ class DummyGitClient:
         self.push_called = 0
         self.changes = []
         self.diffs = {}
+        self.current_branch = "main"
+        self.branches = ["main"]
+        
+    def get_current_branch(self):
+        return self.current_branch
+    
+    def create_branch(self, name):
+        self.branches.append(name)
+        self.current_branch = name
+    
+    def branch_exists(self, name):
+        return name in self.branches
+    
     def get_changes(self):
         return self.changes
+    
     def get_diff(self, path):
         return self.diffs.get(path, "")
+    
     def stage_files(self, files):
         self.stage_called.append(list(files))
+    
     def commit(self, message, *args):  # accept extra args for SVN compatibility
         self.commit_called.append(message)
-    def push(self):
+    
+    def push(self, set_upstream=False):
         self.push_called += 1
 
 
 class DummyGenerator:
     def __init__(self, groups):
         self.groups = groups
+    
     def generate_groups(self, diffs):
         return self.groups
 

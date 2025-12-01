@@ -8,11 +8,14 @@ individual changes into Conventional Commit types using the
 ``classify_change`` function, groups changes by type, and then
 generates a message for each group. In the event of an LLM failure,
 a deterministic fallback message is used.
+
+All commit messages follow the format: [type]: description
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from textwrap import dedent
 from typing import Dict, Iterable, List
 
@@ -41,9 +44,8 @@ class CommitMessageGenerator:
     def _build_prompt(self, group_type: str, files: List[str], diffs: Dict[str, str]) -> str:
         """Construct a prompt for the LLM to generate a commit message.
 
-        The prompt instructs the model to produce a Conventional Commit
-        message of a specific type with a short summary and body listing
-        changes.
+        The prompt instructs the model to produce a commit message
+        with the format [type]: description, followed by a detailed body.
         """
         diff_summary_parts = []
         for file in files:
@@ -56,14 +58,63 @@ class CommitMessageGenerator:
         prompt = dedent(
             f"""
             You are an expert software engineer tasked with writing commit messages.
-            Generate a Conventional Commit message of type '{group_type}' for the following changes.
-            Provide a short subject line and a detailed body summarising what changed.
+            Generate a commit message for the following changes.
+            The message MUST start with [{group_type}]: followed by a short description.
+            Then provide a detailed body summarising what changed.
             The message should be clear and concise.
+
+            Example format:
+            [{group_type}]: short description of the change
+            
+            Detailed explanation of what was changed and why.
 
             {diff_summary}
             """
         ).strip()
         return prompt
+
+    def _normalize_message(self, message: str, group_type: str) -> str:
+        """Normalize the commit message to ensure it starts with [type]: format.
+        
+        Parameters
+        ----------
+        message : str
+            The raw commit message from the LLM.
+        group_type : str
+            The commit type (feat, fix, docs, etc.).
+            
+        Returns
+        -------
+        str
+            Normalized message starting with [type]: description
+        """
+        if not message or not message.strip():
+            raise ValueError("Empty message")
+        
+        lines = message.splitlines()
+        if not lines:
+            raise ValueError("No lines in message")
+        
+        subject_line = lines[0].strip()
+        
+        # Check if already in correct format [type]:
+        if re.match(rf'^\[{re.escape(group_type)}\]:\s+', subject_line, re.IGNORECASE):
+            return message
+        
+        # Check if it starts with type: (without brackets)
+        if re.match(rf'^{re.escape(group_type)}:\s+', subject_line, re.IGNORECASE):
+            # Replace with [type]:
+            subject_line = re.sub(rf'^{re.escape(group_type)}:\s+', f'[{group_type}]: ', subject_line, flags=re.IGNORECASE)
+            return subject_line + "\n" + "\n".join(lines[1:])
+        
+        # Check if it starts with [type] (without colon)
+        if re.match(rf'^\[{re.escape(group_type)}\]\s+', subject_line, re.IGNORECASE):
+            # Add colon after bracket
+            subject_line = re.sub(rf'^\[{re.escape(group_type)}\]\s+', f'[{group_type}]: ', subject_line, flags=re.IGNORECASE)
+            return subject_line + "\n" + "\n".join(lines[1:])
+        
+        # Otherwise, prepend [type]:
+        return f"[{group_type}]: {subject_line}\n" + "\n".join(lines[1:])
 
     def generate_groups(
         self,
@@ -80,6 +131,7 @@ class CommitMessageGenerator:
         -------
         List[CommitGroup]
             A list of commit groups with generated commit messages.
+            All messages follow the format: [type]: description
         """
         # Classify each file
         groups: Dict[str, List[str]] = {}
@@ -91,21 +143,16 @@ class CommitMessageGenerator:
             try:
                 prompt = self._build_prompt(group_type, files, diffs)
                 message = self.ollama_client.generate(prompt)
-                # Ensure the subject line starts with the type prefix
-                if not message.splitlines():
-                    raise ValueError
-                subject_line = message.splitlines()[0]
-                if not subject_line.lower().startswith(group_type):
-                    # Prepend type if missing
-                    message = f"{group_type}: {subject_line}\n" + "\n".join(message.splitlines()[1:])
+                # Normalize the message to ensure correct format
+                message = self._normalize_message(message, group_type)
             except (LLMError, Exception) as exc:
                 logger.warning(
                     "LLM failed to generate commit message for group '%s': %s; using fallback.",
                     group_type,
                     exc,
                 )
-                # Fallback: simple message
-                subject = f"{group_type}: update {len(files)} file{'s' if len(files) != 1 else ''}"
+                # Fallback: simple message with correct format
+                subject = f"[{group_type}]: update {len(files)} file{'s' if len(files) != 1 else ''}"
                 body_lines = [f"- {file}" for file in files]
                 message = subject + "\n\n" + "\n".join(body_lines)
             commit_groups.append(CommitGroup(type=group_type, files=files, message=message, diffs={file: diffs[file] for file in files}))

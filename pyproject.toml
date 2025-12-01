@@ -1,11 +1,3 @@
-[[tool.poetry]]
-name = "vc-commit-helper"
-version = "0.1.0"
-description = "AI‑powered commit assistant for Git and SVN repositories"
-authors = ["Lutz.Pape@gmail.com"]
-license = "MIT"
-readme = "README.md"
-
 [project]
 name = "vc_commit_helper"
 version = "0.1.0"
@@ -44,3 +36,28 @@ aicheckin = "vc_commit_helper.cli:main"
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+norecursedirs = [".git", ".venv", "venv", "env", "Lib", "lib", "site-packages", ".eggs", "*.egg-info", "build", "dist", ".pytest_cache", "__pycache__"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
