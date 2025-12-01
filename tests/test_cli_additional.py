@@ -16,6 +16,18 @@ class DummyGitClient:
         self.staged = []
         self.commits = []
         self.pushed = 0
+        self.current_branch = "main"
+        self.branches = ["main"]
+
+    def get_current_branch(self):
+        return self.current_branch
+    
+    def create_branch(self, name):
+        self.branches.append(name)
+        self.current_branch = name
+    
+    def branch_exists(self, name):
+        return name in self.branches
 
     def get_changes(self):
         return self.changes
@@ -30,7 +42,7 @@ class DummyGitClient:
         # Accept extra args for SVN compatibility
         self.commits.append(message)
 
-    def push(self):
+    def push(self, set_upstream=False):
         self.pushed += 1
 
 

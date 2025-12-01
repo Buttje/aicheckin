@@ -82,13 +82,20 @@ class GitClient:
         """
         full_cmd = ["git"] + args
         logger.debug("Executing Git command: %s", " ".join(full_cmd))
-        result = subprocess.run(
-            full_cmd,
-            cwd=self.repo_root,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        try:
+            result = subprocess.run(
+                full_cmd,
+                cwd=self.repo_root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',  # Replace invalid characters instead of failing
+            )
+        except UnicodeDecodeError as e:
+            logger.error("Unicode decode error in Git output: %s", e)
+            raise GitError(f"Failed to decode Git output: {e}") from e
+        
         if check and result.returncode != 0:
             logger.error(
                 "Git command failed: %s\nSTDOUT: %s\nSTDERR: %s",
@@ -100,46 +107,111 @@ class GitClient:
         return result
 
     # ------------------------------------------------------------------
-    # Detection and status
+    # Status and change detection
     # ------------------------------------------------------------------
     def get_changes(self) -> List[FileChange]:
-        """Return a list of changes in the working tree relative to HEAD.
-
-        Ignored files (according to ``.gitignore`` and other Git mechanisms)
-        are not included. Untracked files are excluded by default. Only
-        modifications, additions, deletions, and renames are considered.
+        """Get the list of changed files in the repository.
+        
+        Returns a list of FileChange objects representing modified, added,
+        deleted, and renamed files. Untracked files (status '??') are excluded.
+        
+        Returns
+        -------
+        List[FileChange]
+            List of file changes in the repository.
+            
+        Raises
+        ------
+        GitError
+            If the git status command fails.
         """
-        # Use porcelain status for easy parsing. The format is two-letter
-        # status codes followed by the filename. See `git status --help`.
         result = self._run(["status", "--porcelain"], check=True)
-        changes: List[FileChange] = []
+        changes = []
+        
         for line in result.stdout.splitlines():
+            # Skip empty lines
             if not line.strip():
                 continue
-            # Status is two columns: index and working tree. We are interested
-            # in the working tree indicator, but treat both similarly.
+            
+            # Git porcelain format: XY filename
+            # X = index status, Y = working tree status
+            # We need at least 3 characters (XY + space + filename)
+            if len(line) < 3:
+                continue
+            
+            # Extract status code (first 2 characters)
             status_code = line[:2]
-            path = line[3:].strip()
-            # Skip untracked files (??) unless specifically included
+            # Extract filename (skip the status and space)
+            filename = line[3:]
+            
+            # Skip untracked files
             if status_code == "??":
                 continue
-            # Map to simplified status
-            if status_code[0] == "R" or status_code[1] == "R":
-                status = "R"
-            elif status_code[0] == "A" or status_code[1] == "A":
-                status = "A"
-            elif status_code[0] == "D" or status_code[1] == "D":
-                status = "D"
-            else:
-                status = "M"
-            changes.append(FileChange(path=path, status=status))
-        logger.debug("Detected Git changes: %s", changes)
+            
+            # Determine the primary status
+            # Status codes can be: ' M', 'M ', 'MM', 'A ', ' A', 'D ', ' D', 'R ', etc.
+            status = status_code.strip()
+            if not status:
+                # Both characters are spaces - shouldn't happen in porcelain output
+                continue
+            
+            # Take the first non-space character as the status
+            primary_status = status[0] if status else 'M'
+            
+            # For renamed files, keep the full "old -> new" syntax in the path
+            changes.append(FileChange(path=filename, status=primary_status))
+        
         return changes
 
-    def get_diff(self, file_path: str) -> str:
-        """Return the unified diff for a specific file relative to HEAD."""
-        result = self._run(["diff", "HEAD", "--", file_path], check=True)
-        return result.stdout
+    # ------------------------------------------------------------------
+    # Branch operations
+    # ------------------------------------------------------------------
+    def get_current_branch(self) -> str:
+        """Get the name of the current branch.
+        
+        Returns
+        -------
+        str
+            The name of the current branch.
+            
+        Raises
+        ------
+        GitError
+            If unable to determine the current branch.
+        """
+        result = self._run(["rev-parse", "--abbrev-ref", "HEAD"], check=True)
+        return result.stdout.strip()
+
+    def branch_exists(self, branch_name: str) -> bool:
+        """Check if a branch exists.
+        
+        Parameters
+        ----------
+        branch_name : str
+            The name of the branch to check.
+            
+        Returns
+        -------
+        bool
+            True if the branch exists, False otherwise.
+        """
+        result = self._run(["branch", "--list", branch_name], check=False)
+        return bool(result.stdout.strip())
+
+    def create_branch(self, branch_name: str) -> None:
+        """Create and switch to a new branch.
+        
+        Parameters
+        ----------
+        branch_name : str
+            The name of the branch to create.
+            
+        Raises
+        ------
+        GitError
+            If branch creation fails.
+        """
+        self._run(["checkout", "-b", branch_name], check=True)
 
     # ------------------------------------------------------------------
     # Staging, committing, pushing
@@ -166,9 +238,23 @@ class GitClient:
         """
         self._run(["commit", "-m", message], check=True)
 
-    def push(self) -> None:
+    def push(self, set_upstream: bool = False) -> None:
         """Push the current branch to the default remote (origin).
 
-        If pushing fails, a GitError is raised.
+        Parameters
+        ----------
+        set_upstream : bool, optional
+            If True, set the upstream branch for the current branch.
+            This is useful when pushing a newly created branch.
+
+        Raises
+        ------
+        GitError
+            If pushing fails.
         """
-        self._run(["push"], check=True)
+        if set_upstream:
+            # Get current branch name
+            branch = self.get_current_branch()
+            self._run(["push", "--set-upstream", "origin", branch], check=True)
+        else:
+            self._run(["push"], check=True) 

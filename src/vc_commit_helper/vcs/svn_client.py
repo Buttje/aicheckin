@@ -67,13 +67,20 @@ class SVNClient:
     def _run(self, args: List[str], check: bool = True) -> subprocess.CompletedProcess:
         full_cmd = ["svn"] + args
         logger.debug("Executing SVN command: %s", " ".join(full_cmd))
-        result = subprocess.run(
-            full_cmd,
-            cwd=self.repo_root,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        try:
+            result = subprocess.run(
+                full_cmd,
+                cwd=self.repo_root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',  # Replace invalid characters instead of failing
+            )
+        except UnicodeDecodeError as e:
+            logger.error("Unicode decode error in SVN output: %s", e)
+            raise SVNError(f"Failed to decode SVN output: {e}") from e
+        
         if check and result.returncode != 0:
             logger.error(
                 "SVN command failed: %s\nSTDOUT: %s\nSTDERR: %s",
@@ -84,10 +91,83 @@ class SVNClient:
             raise SVNError(result.stderr.strip() or result.stdout.strip())
         return result
 
+    # ------------------------------------------------------------------
+    # Branch operations (SVN branches are directories)
+    # ------------------------------------------------------------------
+    def get_current_branch(self) -> str:
+        """Get the name of the current branch.
+        
+        For SVN, this returns the last component of the current URL path.
+        
+        Returns
+        -------
+        str
+            The name of the current branch (e.g., "trunk", "branches/feature").
+            
+        Raises
+        ------
+        SVNError
+            If unable to determine the current branch.
+        """
+        result = self._run(["info", "--show-item", "url"], check=True)
+        url = result.stdout.strip()
+        # Extract branch name from URL (e.g., .../trunk or .../branches/feature)
+        if "/trunk" in url:
+            return "trunk"
+        elif "/branches/" in url:
+            return url.split("/branches/")[-1]
+        elif "/tags/" in url:
+            return url.split("/tags/")[-1]
+        else:
+            # Return the last component of the URL
+            return url.rstrip("/").split("/")[-1]
+
+    def branch_exists(self, branch_name: str) -> bool:
+        """Check if a branch exists.
+        
+        For SVN, this is a simplified check that always returns False
+        since SVN branch creation is more complex and typically done
+        on the server.
+        
+        Parameters
+        ----------
+        branch_name : str
+            The name of the branch to check.
+            
+        Returns
+        -------
+        bool
+            Always returns False for SVN.
+        """
+        # SVN branch checking is complex and requires server access
+        # For simplicity, we always return False
+        return False
+
+    def create_branch(self, branch_name: str) -> None:
+        """Create a new branch.
+        
+        For SVN, branch creation is not supported in this simple client.
+        This method raises an error.
+        
+        Parameters
+        ----------
+        branch_name : str
+            The name of the branch to create.
+            
+        Raises
+        ------
+        SVNError
+            Always raised as SVN branch creation is not supported.
+        """
+        raise SVNError("SVN branch creation is not supported by this client")
+
+    # ------------------------------------------------------------------
+    # File operations
+    # ------------------------------------------------------------------
     def get_changes(self) -> List[FileChange]:
         """Return a list of changes in the working copy relative to BASE.
 
-        Unversioned ("?") files are ignored by default.
+        Unversioned ("?") and ignored ("I") files are excluded by default.
         """
         result = self._run(["status"], check=True)
         changes: List[FileChange] = []
@@ -96,8 +176,8 @@ class SVNClient:
                 continue
             status_code = line[0]
             path = line[8:].strip()
-            # Ignore unversioned files
-            if status_code == "?":
+            # Ignore unversioned and ignored files
+            if status_code in ("?", "I"):
                 continue
             # Map to simplified statuses
             if status_code == "A":

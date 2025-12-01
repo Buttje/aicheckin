@@ -64,19 +64,19 @@ def collect_executed_lines(project_root: Path) -> Dict[str, Set[int]]:
             lineno = frame.f_lineno
             executed.setdefault(filename, set()).add(lineno)
         return tracer
-
     # Ensure tests are importable
     # Run the unittest discovery under trace
     def run_tests() -> None:
         # Discover tests in the "tests" directory
         loader = unittest.TestLoader()
-        suite = loader.discover("tests", pattern="test_*.py")
+        # Use absolute path to ensure we only discover tests in the project's tests directory
+        tests_dir = Path(__file__).parent / "tests"
+        suite = loader.discover(str(tests_dir.resolve()), pattern="test_*.py", top_level_dir=str(Path(__file__).parent))
         runner = unittest.TextTestRunner()
         result = runner.run(suite)
         if not result.wasSuccessful():
             # Exit with non‑zero to indicate failure
             sys.exit(1)
-
     sys.settrace(tracer)
     try:
         run_tests()
