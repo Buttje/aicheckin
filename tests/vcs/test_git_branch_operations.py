@@ -79,11 +79,11 @@ class TestGitBranchOperations(unittest.TestCase):
         client = GitClient(Path("/fake/repo"))
         client.create_branch("feature-branch")
         
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0][0]
-        self.assertIn("checkout", args)
-        self.assertIn("-b", args)
-        self.assertIn("feature-branch", args)
+        # Multiple git subprocess calls may occur (checkout, remote checks, push)
+        self.assertGreaterEqual(mock_run.call_count, 1)
+        # Ensure that one of the calls performed the branch checkout
+        called_args = [c[0][0] for c in mock_run.call_args_list]
+        self.assertTrue(any("checkout" in args and "-b" in args and "feature-branch" in args for args in called_args))
 
     @patch("vc_commit_helper.vcs.git_client.subprocess.run")
     def test_create_branch_error(self, mock_run):

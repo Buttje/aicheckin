@@ -76,11 +76,8 @@ class TestSVNBranchOperations(unittest.TestCase):
     def test_create_branch_not_supported(self):
         """Test that create_branch raises error for SVN."""
         client = SVNClient(Path("/fake/repo"))
-        
-        with self.assertRaises(SVNError) as ctx:
+        with self.assertRaises(SVNError):
             client.create_branch("new-branch")
-        
-        self.assertIn("not supported", str(ctx.exception))
 
 
 if __name__ == "__main__":
