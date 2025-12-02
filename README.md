@@ -90,15 +90,12 @@ Run the tool from within your repository (or any subdirectory of it):
 python aicheckin.py
 ```
 
-The tool will detect your VCS, load the Ollama configuration, find
-uncommitted changes and propose commit groups with messages. You will
-be prompted to accept, edit or decline each group. When accepted,
-changes will be staged, committed and pushed (Git) or committed
-(SVN).
+You can run the tool interactively to review and confirm generated
+commit groups, or use `--yes` to accept all proposed groups
+non-interactively (useful for automation).
 
 To automatically accept all groups without prompting, use the
 `--yes` flag:
-
 ```bash
 python aicheckin.py --yes
 ```
@@ -187,7 +184,7 @@ pytest -q
 Optionally generate a coverage report:
 
 ```bash
-pytest --cov=vc_commit_helper --cov-report=term-missing
+pytest --cov=src --cov-report=term-missing
 ```
 
 ## Limitations and known issues
