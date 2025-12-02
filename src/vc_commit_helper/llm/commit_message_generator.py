@@ -47,30 +47,51 @@ class CommitMessageGenerator:
         The prompt instructs the model to produce a commit message
         with the format [type]: description, followed by a detailed body.
         """
-        diff_summary_parts = []
+        diff_summary_parts: List[str] = []
         for file in files:
             diff_text = diffs.get(file, "")
-            # Summarize diff by including first few changed lines for context
-            lines = [line for line in diff_text.splitlines() if line.startswith(('+', '-')) and not line.startswith(('++', '--'))]
+            # Summarize diff by including the first few changed lines for context
+            lines = [
+                line
+                for line in diff_text.splitlines()
+                if (line.startswith("+") or line.startswith("-")) and not (line.startswith("++") or line.startswith("--"))
+            ]
             summary = "\n".join(lines[:6]) if lines else ""
             diff_summary_parts.append(f"File: {file}\n{summary}")
+
         diff_summary = "\n\n".join(diff_summary_parts)
+
         prompt = dedent(
             f"""
-            You are an expert software engineer tasked with writing commit messages.
-            Generate a commit message for the following changes.
-            The message MUST start with [{group_type}]: followed by a short description.
-            Then provide a detailed body summarising what changed.
-            The message should be clear and concise.
+            You are an expert software engineer and technical writer.
+            Generate a high-quality commit message for the following changes.
 
-            Example format:
-            [{group_type}]: short description of the change
-            
-            Detailed explanation of what was changed and why.
+            Requirements (follow these exactly):
+            - Use Conventional Commits style: the subject MUST start with
+              [{group_type}]:
+            - Subject line: imperative mood, short, <= 50 characters.
+            - Body: explain what changed and WHY (motivation and impact).
+              Wrap lines at ~72 characters.
+            - Use bullet points in the body if multiple important items exist.
+            - If the change affects backward compatibility, state it clearly.
+            - Do NOT include file diffs verbatim in the subject or body,
+              but you can summarise the important hunks.
+
+            Example:
+            [{group_type}]: short imperative summary
+
+            A short paragraph describing what and why. If necessary, use
+            bullets for important details:
+            - bullet 1
+            - bullet 2
+
+            Now generate the commit message for these diffs (give subject
+            plus a concise body). Keep it professional and helpful.
 
             {diff_summary}
             """
         ).strip()
+
         return prompt
 
     def _normalize_message(self, message: str, group_type: str) -> str:

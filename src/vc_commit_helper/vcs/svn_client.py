@@ -164,10 +164,12 @@ class SVNClient:
     # ------------------------------------------------------------------
     # File operations
     # ------------------------------------------------------------------
-    def get_changes(self) -> List[FileChange]:
+    def get_changes(self, include_untracked: bool = False) -> List[FileChange]:
         """Return a list of changes in the working copy relative to BASE.
 
-        Unversioned ("?") and ignored ("I") files are excluded by default.
+        By default unversioned ("?") and ignored ("I") files are excluded.
+        Set ``include_untracked=True`` to include unversioned files mapped to
+        status 'N' (New), matching the Git client's behaviour.
         """
         result = self._run(["status"], check=True)
         changes: List[FileChange] = []
@@ -176,8 +178,15 @@ class SVNClient:
                 continue
             status_code = line[0]
             path = line[8:].strip()
-            # Ignore unversioned and ignored files
-            if status_code in ("?", "I"):
+            # Handle unversioned and ignored files
+            if status_code == "I":
+                # ignored - skip always
+                continue
+            if status_code == "?":
+                if include_untracked:
+                    # map to New (N) to match Git convention
+                    changes.append(FileChange(path=path, status="N"))
+                # otherwise skip unversioned files
                 continue
             # Map to simplified statuses
             if status_code == "A":
@@ -194,7 +203,8 @@ class SVNClient:
 
     def get_diff(self, file_path: str) -> str:
         """Return the unified diff for a specific file relative to BASE."""
-        result = self._run(["diff", "--", file_path], check=True)
+        # Use check=False to avoid raising for files in unexpected states
+        result = self._run(["diff", "--", file_path], check=False)
         return result.stdout
 
     def stage_files(self, files: List[str], statuses: Optional[dict[str, str]] = None) -> None:

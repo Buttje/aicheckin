@@ -109,11 +109,13 @@ class GitClient:
     # ------------------------------------------------------------------
     # Status and change detection
     # ------------------------------------------------------------------
-    def get_changes(self) -> List[FileChange]:
+    def get_changes(self, include_untracked: bool = False) -> List[FileChange]:
         """Get the list of changed files in the repository.
         
         Returns a list of FileChange objects representing modified, added,
-        deleted, and renamed files. Untracked files (status '??') are excluded.
+        deleted, and renamed files. By default untracked files (status '??')
+        are excluded; set ``include_untracked=True`` to include them with
+        status 'N'.
         
         Returns
         -------
@@ -144,24 +146,48 @@ class GitClient:
             # Extract filename (skip the status and space)
             filename = line[3:]
             
-            # Skip untracked files
+            # Map untracked files (??) to status 'N' (New) if requested,
+            # otherwise skip them. This keeps behaviour compatible with
+            # callers that expect git to hide untracked files by default.
             if status_code == "??":
-                continue
-            
-            # Determine the primary status
-            # Status codes can be: ' M', 'M ', 'MM', 'A ', ' A', 'D ', ' D', 'R ', etc.
-            status = status_code.strip()
-            if not status:
-                # Both characters are spaces - shouldn't happen in porcelain output
-                continue
-            
-            # Take the first non-space character as the status
-            primary_status = status[0] if status else 'M'
+                if include_untracked:
+                    primary_status = "N"
+                else:
+                    continue
+            else:
+                # Determine the primary status
+                # Status codes can be: ' M', 'M ', 'MM', 'A ', ' A', 'D ', ' D', 'R ', etc.
+                status = status_code.strip()
+                if not status:
+                    # Both characters are spaces - shouldn't happen in porcelain output
+                    continue
+                # Take the first non-space character as the status
+                primary_status = status[0] if status else 'M'
             
             # For renamed files, keep the full "old -> new" syntax in the path
             changes.append(FileChange(path=filename, status=primary_status))
         
         return changes
+
+    # ------------------------------------------------------------------
+    # Diff retrieval
+    # ------------------------------------------------------------------
+    def get_diff(self, file_path: str) -> str:
+        """Return a unified diff for a specific file.
+
+        For tracked/modified files this calls `git diff -- <file>`.
+        For untracked files (new files) it returns the working tree diff
+        (which for untracked files will be empty unless compared with --no-index,
+        but callers can interpret empty diffs appropriately).
+        """
+        abs_path = self.repo_root / file_path
+        # If file exists, try to get working-tree diff
+        if abs_path.exists():
+            result = self._run(["diff", "--", file_path], check=False)
+            return result.stdout
+        else:
+            # File does not exist in working tree (deleted); return empty diff
+            return ""
 
     # ------------------------------------------------------------------
     # Branch operations
