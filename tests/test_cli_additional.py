@@ -31,6 +31,9 @@ class DummyGitClient:
 
     def get_changes(self):
         return self.changes
+    
+    def get_changes(self, include_untracked: bool = False):
+        return self.changes
 
     def get_diff(self, path):
         return self.diffs.get(path, "")

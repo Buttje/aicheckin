@@ -33,12 +33,14 @@ class TestGitClient(unittest.TestCase):
         with patch.object(GitClient, "_run", autospec=True) as mock_run:
             mock_run.side_effect = fake_run
             client = GitClient(Path("/repo"))
-            changes = client.get_changes()
+            # Request inclusion of untracked files for this test
+            changes = client.get_changes(include_untracked=True)
             self.assertIn(FileChange(path="modified_file.py", status="M"), changes)
             self.assertIn(FileChange(path="added_file.py", status="A"), changes)
             self.assertIn(FileChange(path="deleted_file.py", status="D"), changes)
             self.assertIn(FileChange(path="renamed_old.py -> renamed_new.py", status="R"), changes)
-            self.assertTrue(all(ch.path != "untracked.txt" for ch in changes))
+            # Untracked files should now be reported with status 'N'
+            self.assertIn(FileChange(path="untracked.txt", status="N"), changes)
 
     def test_stage_files_calls_correct_commands(self) -> None:
         calls = []

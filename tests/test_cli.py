@@ -29,7 +29,7 @@ class DummyGitClient:
     def branch_exists(self, name):
         return name in self.branches
     
-    def get_changes(self):
+    def get_changes(self, include_untracked: bool = False):
         return self.changes
     
     def get_diff(self, path):
