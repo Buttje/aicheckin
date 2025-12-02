@@ -24,7 +24,8 @@ class TestCommitMessageGeneratorExtra(unittest.TestCase):
         # Should use fallback message with correct format
         self.assertEqual(len(groups), 1)
         self.assertIn("[test]:", groups[0].message)
-        self.assertIn("update 1 file", groups[0].message)
+        self.assertIn("Changes to 1 file", groups[0].message)
+        self.assertIn("- tests/test_example.py", groups[0].message)
     def test_generate_groups_with_generic_exception(self):
         """Test handling when LLM raises generic exception."""
         mock_client = Mock()
@@ -40,7 +41,8 @@ class TestCommitMessageGeneratorExtra(unittest.TestCase):
         # Should use fallback message with correct format
         self.assertEqual(len(groups), 1)
         self.assertIn("[feat]:", groups[0].message)
-        self.assertIn("update 1 file", groups[0].message)
+        self.assertIn("Changes to 1 file", groups[0].message)
+        self.assertIn("- feature.py", groups[0].message)
 
     def test_normalize_message_without_brackets(self):
         """Test normalizing message that starts with type: instead of [type]:"""
