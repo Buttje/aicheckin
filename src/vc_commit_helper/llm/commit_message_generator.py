@@ -9,7 +9,13 @@ individual changes into Conventional Commit types using the
 generates a message for each group. In the event of an LLM failure,
 a deterministic fallback message is used.
 
-All commit messages follow the format: [type]: description
+All commit messages follow the format:
+  [type]: Brief description (max 10 words)
+  
+  Detailed functional description (what, why, how the functionality changes).
+  
+  - file1
+  - file2
 """
 
 from __future__ import annotations
@@ -44,37 +50,52 @@ class CommitMessageGenerator:
     def _build_prompt(self, group_type: str, files: List[str], diffs: Dict[str, str]) -> str:
         """Construct a prompt for the LLM to generate a commit message.
 
-        The prompt instructs the model to produce a commit message
-        with the format [type]: description, followed by a detailed body.
+        The prompt instructs the model to produce a commit message with:
+        1. Title: [type]: brief description (max 10 words)
+        2. Body: detailed functional description (what, why, how)
+        3. File list: affected files with '-' prefix
         """
-        diff_summary_parts = []
+        # Gather full diffs for context; include more lines for better understanding
+        diff_parts = []
         for file in files:
             diff_text = diffs.get(file, "")
-            # Summarize diff by including first few changed lines for context
-            lines = [line for line in diff_text.splitlines() if line.startswith(('+', '-')) and not line.startswith(('++', '--'))]
-            summary = "\n".join(lines[:6]) if lines else ""
-            diff_summary_parts.append(f"File: {file}\n{summary}")
-        diff_summary = "\n\n".join(diff_summary_parts)
+            if diff_text:
+                # Include more context lines (up to 20) to help LLM understand functionality
+                lines = [line for line in diff_text.splitlines() if line.startswith(('+', '-')) and not line.startswith(('++', '--'))]
+                context_lines = "\n".join(lines[:20]) if lines else "(no changes)"
+                diff_parts.append(f"File: {file}\n{context_lines}")
+            else:
+                diff_parts.append(f"File: {file}\n(no diff available)")
+        
+        diff_context = "\n\n".join(diff_parts)
+        
         prompt = dedent(
             f"""
-            You are an expert software engineer tasked with writing commit messages.
-            Generate a commit message for the following changes.
-            The message MUST start with [{group_type}]: followed by a short description.
-            Then provide a brief 1-2 sentence "Functional impact" summary that explains
-            the runtime/behavioural impact of the change (what will happen when this
-            change is applied). Place this functional impact summary before the
-            detailed file list or body.
-            Finally, provide a detailed body summarising what changed.
-            The message should be clear and concise.
+            You are an expert software engineer writing commit messages.
+            Analyze the following changes and generate a commit message.
 
-            Example format:
-            [{group_type}]: short description of the change
+            COMMIT MESSAGE FORMAT (strict):
+            Line 1: [{group_type}]: <brief description max 10 words>
+            Line 2: (blank)
+            Lines 3-6: Detailed description of what changed, why it changed, and how the functionality is affected. 
+                       Focus on the functional/behavioral impact, not just "files were updated".
+                       Describe what the code now does, why this change was needed, and what users/system will experience.
+            Line 7: (blank)
+            Lines 8+: Affected files, one per line with "- " prefix
 
-            Functional impact: One- or two-sentence summary of behavioural impact.
+            IMPORTANT:
+            - The subject line (line 1) MUST be concise and max 10 words
+            - The description (lines 3-6) MUST explain WHAT changed functionally, WHY it was needed, and HOW it affects behavior
+            - Do NOT write generic messages like "update files" or "refactor code"
+            - DO explain the actual functionality impact
 
-            Detailed explanation of what was changed and why.
+            CHANGES TO ANALYZE:
+            {diff_context}
 
-            {diff_summary}
+            FILES AFFECTED:
+            {chr(10).join(f"- {f}" for f in files)}
+
+            Now write the commit message following the exact format above:
             """
         ).strip()
         return prompt
@@ -157,14 +178,18 @@ class CommitMessageGenerator:
                     group_type,
                     exc,
                 )
-                # Fallback: simple message with correct format and a short
-                # deterministic functional impact summary placed before the file list.
-                subject = f"[{group_type}]: update {len(files)} file{'s' if len(files) != 1 else ''}"
-                impact = (
-                    f"Functional impact: Changes {len(files)} file{'s' if len(files) != 1 else ''}. "
-                    "Review the file list for affected areas and potential behaviour changes."
+                # Fallback: concise message following the new format
+                # Line 1: [type]: brief description
+                # Line 2: blank
+                # Lines 3-4: functional description
+                # Line 5: blank
+                # Lines 6+: file list
+                subject = f"[{group_type}]: Changes to {len(files)} file{'s' if len(files) != 1 else ''}"
+                description = (
+                    "Updated the following files to address functionality improvements and "
+                    "maintain code quality. Review the affected files for specific changes."
                 )
                 body_lines = [f"- {file}" for file in files]
-                message = subject + "\n\n" + impact + "\n\n" + "\n".join(body_lines)
+                message = subject + "\n\n" + description + "\n\n" + "\n".join(body_lines)
             commit_groups.append(CommitGroup(type=group_type, files=files, message=message, diffs={file: diffs[file] for file in files}))
         return commit_groups
