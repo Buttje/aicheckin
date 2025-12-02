@@ -39,7 +39,7 @@ class ConfigError(Exception):
     pass
 
 
-def _get_install_directory() -> Path:
+def _get_install_directory(module_file: Optional[Path] = None) -> Path:
     """Get the installation directory of aicheckin.
     
     Returns the directory where the aicheckin package is installed.
@@ -48,10 +48,11 @@ def _get_install_directory() -> Path:
     For editable installs, this returns the source directory.
     For regular installs, this returns the site-packages directory.
     """
-    # Get the directory of this module file (__file__ points to loader.py)
-    # loader.py is in: src/vc_commit_helper/config/loader.py
+    # Determine the module file to use (allows tests to pass a fake path).
+    module_file = Path(module_file) if module_file is not None else Path(__file__)
+    # Get the directory of this module file (loader.py -> src/vc_commit_helper/config/loader.py)
     # We want: src/vc_commit_helper/
-    module_dir = Path(__file__).parent.parent
+    module_dir = module_file.parent.parent
     
     # Check if we're in an editable install (source directory)
     # In editable mode, the config should be in the source tree
@@ -91,8 +92,16 @@ def load_config(repo_root: Optional[Path] = None) -> Dict[str, Any]:
     Raises:
         ConfigError: If the configuration file is missing, malformed, or invalid.
     """
-    install_dir = _get_install_directory()
-    config_path = install_dir / ".ollama_config.json"
+    # First, prefer a user-level configuration in the home folder
+    # e.g. ~/.ollama_server/.ollama_config.json
+    home_config_dir = Path.home() / ".ollama_server"
+    home_config_path = home_config_dir / ".ollama_config.json"
+
+    if home_config_path.exists():
+        config_path = home_config_path
+    else:
+        install_dir = _get_install_directory()
+        config_path = install_dir / ".ollama_config.json"
     
     if not config_path.exists():
         logger.error("Configuration file '%s' does not exist", config_path)

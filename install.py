@@ -9,9 +9,11 @@ Usage:
     python install.py
 """
 
+import argparse
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -83,6 +85,140 @@ def get_system_info() -> Tuple[str, str]:
     os_name = platform.system()
     architecture = platform.machine()
     return os_name, architecture
+
+
+def detect_platform() -> str:
+    """Return a normalized platform name: 'windows', 'linux', or 'mac'."""
+    name = platform.system().lower()
+    if name.startswith("win"):
+        return "windows"
+    if name.startswith("darwin") or name.startswith("mac"):
+        return "mac"
+    return "linux"
+
+
+def find_package_manager() -> Optional[str]:
+    """Detect a usable package manager on the host and return its id.
+
+    Returns one of: 'apt', 'dnf', 'pacman', 'zypper', 'brew', 'choco', 'winget', or None.
+    """
+    # Common Linux package managers
+    for pm in ("apt", "dnf", "pacman", "zypper"):
+        if shutil.which(pm):
+            return pm
+    # macOS
+    if shutil.which("brew"):
+        return "brew"
+    # Windows
+    if shutil.which("choco"):
+        return "choco"
+    if shutil.which("winget"):
+        return "winget"
+    return None
+
+
+def is_program_installed(exe_name: str) -> bool:
+    """Return True if `exe_name` is found on PATH."""
+    return shutil.which(exe_name) is not None
+
+
+def attempt_install_program(program: str, pkg_manager: Optional[str], auto_yes: bool = False) -> bool:
+    """Try to install a program using the detected package manager.
+
+    Currently supports 'git' and 'subversion' packages. Returns True on
+    success, False otherwise.
+    """
+    if pkg_manager is None:
+        return False
+
+    mapping = {
+        # mapping: program -> dict of pkg manager -> package name
+        "git": {
+            "apt": "git",
+            "dnf": "git",
+            "pacman": "git",
+            "zypper": "git",
+            "brew": "git",
+            "choco": "git",
+            "winget": "Git.Git",
+        },
+        "svn": {
+            "apt": "subversion",
+            "dnf": "subversion",
+            "pacman": "subversion",
+            "zypper": "subversion",
+            "brew": "subversion",
+            "choco": "svn",
+            "winget": "Slik.SlikSVN",
+        },
+    }
+
+    pkg_name = mapping.get(program, {}).get(pkg_manager)
+    if not pkg_name:
+        return False
+
+    cmds = []
+    try:
+        if pkg_manager == "apt":
+            cmds = [["sudo", "apt", "update"], ["sudo", "apt", "install", "-y", pkg_name]]
+        elif pkg_manager == "dnf":
+            cmds = [["sudo", "dnf", "install", "-y", pkg_name]]
+        elif pkg_manager == "pacman":
+            cmds = [["sudo", "pacman", "-S", "--noconfirm", pkg_name]]
+        elif pkg_manager == "zypper":
+            cmds = [["sudo", "zypper", "install", "-y", pkg_name]]
+        elif pkg_manager == "brew":
+            cmds = [["brew", "install", pkg_name]]
+        elif pkg_manager == "choco":
+            cmds = [["choco", "install", pkg_name, "-y"]]
+        elif pkg_manager == "winget":
+            cmds = [["winget", "install", "--id", pkg_name, "-e"]]
+
+        for cmd in cmds:
+            print_info(f"Running: {' '.join(cmd)}")
+            if not auto_yes:
+                ok = input(f"Execute command to install {program}? [y/N]: ").strip().lower() == "y"
+                if not ok:
+                    print_warning(f"Skipping installation of {program}")
+                    return False
+            subprocess.run(cmd, check=True)
+        return True
+    except subprocess.CalledProcessError as e:
+        print_warning(f"Automatic install of {program} failed: {e}")
+        return False
+    except Exception as e:
+        print_warning(f"Failed to install {program}: {e}")
+        return False
+
+
+def check_and_install_dependencies(auto_yes: bool = False) -> None:
+    """Check required external programs and attempt to install missing ones.
+
+    Required programs: git, svn (subversion), and ollama (only checked).
+    """
+    required = {"git": "git", "svn": "svn", "ollama": "ollama"}
+    missing = [name for name, exe in required.items() if not is_program_installed(exe)]
+    if not missing:
+        print_success("All required external programs are installed: git, svn, ollama")
+        return
+
+    print_warning(f"Missing external programs: {', '.join(missing)}")
+    pkg_manager = find_package_manager()
+    if pkg_manager:
+        print_info(f"Detected package manager: {pkg_manager}")
+    else:
+        print_info("No supported package manager detected; installer can only suggest manual steps")
+
+    for prog in missing:
+        if prog == "ollama":
+            print_info("Ollama installation is platform specific and is not installed automatically.")
+            print_info("See https://ollama.com/docs for installation instructions.")
+            continue
+        success = attempt_install_program(prog if prog != "svn" else "svn", pkg_manager, auto_yes=auto_yes)
+        if success:
+            print_success(f"Installed {prog} using {pkg_manager}")
+        else:
+            print_warning(f"Could not install {prog} automatically. Please install it manually.")
 
 
 def check_python_version() -> bool:
@@ -382,17 +518,17 @@ def setup_config() -> bool:
     Returns:
         True if successful, False otherwise.
     """
-    install_dir = Path(__file__).parent / "src" / "vc_commit_helper"
-    config_path = install_dir / ".ollama_config.json"
-    
+    # New policy: user-level configuration lives in the home directory
+    # under ~/.ollama_server/.ollama_config.json. Create the directory
+    # and write an example config if it does not exist.
+    home_dir = Path.home() / ".ollama_server"
+    config_path = home_dir / ".ollama_config.json"
+
     if config_path.exists():
-        print_success(f"Configuration file already exists")
-        
-        # Validate existing config
+        print_success("Configuration file already exists")
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
-            
             required_keys = ["base_url", "port", "model"]
             if all(key in config for key in required_keys):
                 print_success("Configuration is valid")
@@ -402,52 +538,27 @@ def setup_config() -> bool:
                 print_warning("Configuration is missing required keys")
         except Exception as e:
             print_warning(f"Configuration file is invalid: {e}")
-    
-    print_info("\nSetting up Ollama configuration...")
-    print("Please provide the following information (press Enter for defaults):\n")
-    
+
+    print_info("\nSetting up Ollama configuration in your home directory...")
     try:
-        base_url = input(f"  Ollama base URL [{Colors.BLUE}http://localhost{Colors.RESET}]: ").strip()
-        base_url = base_url or "http://localhost"
-        
-        port = input(f"  Ollama port [{Colors.BLUE}11434{Colors.RESET}]: ").strip()
-        port = port or "11434"
-        
-        model = input(f"  Ollama model [{Colors.BLUE}llama3{Colors.RESET}]: ").strip()
-        model = model or "llama3"
-        
-        timeout = input(f"  Request timeout in seconds [{Colors.BLUE}60{Colors.RESET}]: ").strip()
-        timeout = timeout or "60"
-        
-        max_tokens = input(f"  Max tokens (leave empty for default): ").strip()
-        
-        config = {
-            "base_url": base_url,
-            "port": int(port),
-            "model": model,
-            "request_timeout": float(timeout)
+        home_dir.mkdir(parents=True, exist_ok=True)
+        example = {
+            "base_url": "http://localhost",
+            "port": 11434,
+            "model": "llama3",
+            "request_timeout": 60,
+            "max_tokens": 1024,
         }
-        
-        if max_tokens:
-            config["max_tokens"] = int(max_tokens)
-        
-        # Create directory if it doesn't exist
-        install_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Write config file
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2)
-        
-        print_success(f"Configuration saved")
-        print_info(f"Config location: {config_path}")
+        if not config_path.exists():
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(example, f, indent=2)
+            print_success(f"Wrote example configuration to: {config_path}")
+            print_info("Please edit this file to match your Ollama installation if necessary")
+        else:
+            print_info(f"Existing config found: {config_path}")
         return True
-        
-    except KeyboardInterrupt:
-        print("\n")
-        print_warning("Configuration setup cancelled")
-        return False
     except Exception as e:
-        print_error(f"Failed to save configuration: {e}")
+        print_error(f"Failed to create configuration in home directory: {e}")
         return False
 
 
@@ -563,6 +674,10 @@ def main() -> int:
     if not check_python_version():
         return 1
     
+    parser = argparse.ArgumentParser(description="Install aicheckin and optionally dependencies")
+    parser.add_argument("-y", "--yes", action="store_true", help="Automatically confirm prompts during installation")
+    args = parser.parse_args()
+
     # Install package
     print()
     package_installed, has_path_warning = install_package()
@@ -576,6 +691,9 @@ def main() -> int:
     
     # Set up configuration
     print()
+    # Check external dependencies (git, svn, ollama) and attempt install when possible
+    check_and_install_dependencies(auto_yes=args.yes)
+
     config_ok = setup_config()
     
     if not config_ok:

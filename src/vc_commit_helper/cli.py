@@ -359,6 +359,40 @@ def prompt_user(group: CommitGroup, group_num: int, total_groups: int) -> Option
                     return group.message
 
 
+def _interactive_select_files(label: str, files: List[str]) -> List[str]:
+    """Ask the user whether to add/delete all or step through files.
+
+    Returns the list of accepted files.
+    """
+    if not files:
+        return []
+
+    click.echo(f"\n{label} files ({len(files)}):")
+    for f in files:
+        click.echo(f"   • {f}")
+
+    choice = click.prompt(
+        f"   {label}: Add all (A) or single-step (S)?",
+        type=click.Choice(["A", "S", "a", "s"], case_sensitive=False),
+        default="A",
+    ).strip().lower()
+
+    accepted: List[str] = []
+    if choice == "a":
+        accepted = list(files)
+    else:
+        for f in files:
+            sub = click.prompt(
+                f"   Add {f}? (A=add / R=reject)",
+                type=click.Choice(["A", "R", "a", "r"], case_sensitive=False),
+                default="A",
+            ).strip().lower()
+            if sub == "a":
+                accepted.append(f)
+
+    return accepted
+
+
 @click.command()
 @click.option("--yes", "yes", is_flag=True, help="Accept all generated commit groups without prompting.")
 @click.option("--vcs", type=click.Choice(["git", "svn"]), help="Force the VCS type (git or svn).")
@@ -469,19 +503,57 @@ def main(yes: bool, vcs: Optional[str], verbose: bool) -> None:
         
         try:
             with ProgressIndicator("Scanning for modified files"):
-                changes = client.get_changes()
+                # Include untracked files so the CLI can present new files
+                # to the user for potential staging. The get_changes API
+                # defaults to excluding untracked files for callers that
+                # expect that behaviour (e.g. tests).
+                changes = client.get_changes(include_untracked=True)
             
             if not changes:
                 print_warning("No changes detected to commit.")
                 raise click.exceptions.Exit(EXIT_NO_CHANGES)
-            
+
             print_success(f"Found {len(changes)} changed file{'s' if len(changes) != 1 else ''}")
-            
-            # Show changed files
-            for change in changes[:5]:  # Show first 5
-                print_info(f"{change.status} {change.path}", indent=1)
+
+            # Categorize changes: New (N), Deleted (D), Modified (M), Renamed (R), Added (A)
+            new_files = [c.path for c in changes if c.status == "N"]
+            deleted_files = [c.path for c in changes if c.status == "D"]
+            modified_files = [c.path for c in changes if c.status == "M"]
+            renamed = [c.path for c in changes if c.status == "R"]
+            staged_added = [c.path for c in changes if c.status == "A"]
+
+            # Show a short preview
+            preview = [f"{c.status} {c.path}" for c in changes[:5]]
+            for line in preview:
+                print_info(line, indent=1)
             if len(changes) > 5:
                 print_info(f"... and {len(changes) - 5} more", indent=1)
+
+            # Interactive selection for new and deleted files
+            if yes:
+                accepted_new = list(new_files)
+                accepted_deleted = list(deleted_files)
+            else:
+                accepted_new = _interactive_select_files("New", new_files)
+                accepted_deleted = _interactive_select_files("Deleted", deleted_files)
+
+            # Files that are implicitly accepted (modified, staged added, renamed)
+            accepted_modified = list(modified_files) + list(staged_added) + list(renamed)
+
+            # Build final accepted changes list of FileChange-ish objects
+            from vc_commit_helper.vcs.git_client import FileChange as GC
+
+            accepted_changes = []
+            for p in accepted_new:
+                accepted_changes.append(GC(path=p, status="A"))
+            for p in accepted_deleted:
+                accepted_changes.append(GC(path=p, status="D"))
+            for p in accepted_modified:
+                accepted_changes.append(GC(path=p, status="M"))
+
+            if not accepted_changes:
+                print_warning("No changes accepted for commit after selection.")
+                raise click.exceptions.Exit(EXIT_NO_CHANGES)
             
         except (GitError, SVNError) as exc:
             print_error(f"VCS error: {exc}")
@@ -491,11 +563,11 @@ def main(yes: bool, vcs: Optional[str], verbose: bool) -> None:
         current_step += 1
         print_step(current_step, total_steps, "Extracting Diffs")
         
-        with ProgressIndicator(f"Reading diffs for {len(changes)} file(s)"):
-            diffs = extract_diffs(client, changes)
-        
+        with ProgressIndicator(f"Reading diffs for {len(accepted_changes)} file(s)"):
+            diffs = extract_diffs(client, accepted_changes)
+
         print_success(f"Extracted diffs for {len(diffs)} file(s)")
-        
+
         # Calculate total diff size
         total_lines = sum(len(diff.splitlines()) for diff in diffs.values())
         print_info(f"Total changes: ~{total_lines} lines", indent=1)
