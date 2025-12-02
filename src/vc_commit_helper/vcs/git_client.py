@@ -198,6 +198,20 @@ class GitClient:
         result = self._run(["branch", "--list", branch_name], check=False)
         return bool(result.stdout.strip())
 
+    def _has_remote(self) -> bool:
+        """Return True if the repository has at least one remote configured."""
+        result = self._run(["remote"], check=False)
+        return bool(result.stdout.strip())
+
+    def remote_branch_exists(self, branch_name: str, remote: str = "origin") -> bool:
+        """Check whether a branch exists on the given remote.
+
+        Uses `git ls-remote --heads <remote> <branch>` which returns nothing
+        (exit code 0) when the branch does not exist on the remote.
+        """
+        result = self._run(["ls-remote", "--heads", remote, branch_name], check=False)
+        return bool(result.stdout.strip())
+
     def create_branch(self, branch_name: str) -> None:
         """Create and switch to a new branch.
         
@@ -211,7 +225,19 @@ class GitClient:
         GitError
             If branch creation fails.
         """
+        # Create local branch and switch to it
         self._run(["checkout", "-b", branch_name], check=True)
+
+        # If a remote exists and the branch is not present there, create it
+        # on the remote by pushing and setting the upstream. This ensures
+        # the branch exists on the remote before further operations.
+        try:
+            if self._has_remote() and not self.remote_branch_exists(branch_name):
+                self._run(["push", "--set-upstream", "origin", branch_name], check=True)
+        except GitError:
+            # Bubble up the error if push fails; callers can decide how to
+            # handle it. We don't silently ignore remote push failures.
+            raise
 
     # ------------------------------------------------------------------
     # Staging, committing, pushing

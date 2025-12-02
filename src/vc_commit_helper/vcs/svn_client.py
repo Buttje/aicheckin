@@ -80,6 +80,10 @@ class SVNClient:
         except UnicodeDecodeError as e:
             logger.error("Unicode decode error in SVN output: %s", e)
             raise SVNError(f"Failed to decode SVN output: {e}") from e
+        except FileNotFoundError as e:
+            # SVN executable not found on PATH
+            logger.error("SVN executable not found: %s", e)
+            raise SVNError("svn executable not found") from e
         
         if check and result.returncode != 0:
             logger.error(
@@ -139,9 +143,19 @@ class SVNClient:
         bool
             Always returns False for SVN.
         """
-        # SVN branch checking is complex and requires server access
-        # For simplicity, we always return False
-        return False
+        # Attempt to detect repository root URL and check if the branch
+        # directory exists under the conventional /branches/ path.
+        try:
+            repos_root = self._get_repository_root_url()
+        except SVNError:
+            return False
+
+        if not repos_root:
+            return False
+
+        branch_url = f"{repos_root.rstrip('/')}/branches/{branch_name}"
+        result = self._run(["ls", branch_url], check=False)
+        return result.returncode == 0 and bool(result.stdout.strip())
 
     def create_branch(self, branch_name: str) -> None:
         """Create a new branch.
@@ -159,7 +173,47 @@ class SVNClient:
         SVNError
             Always raised as SVN branch creation is not supported.
         """
-        raise SVNError("SVN branch creation is not supported by this client")
+        # Create a branch on the SVN server by copying the current URL to
+        # the branches/<branch_name> location. This requires server access
+        # and write permissions.
+        try:
+            repos_root = self._get_repository_root_url()
+        except SVNError as e:
+            raise SVNError("Unable to determine repository root for branch creation") from e
+
+        if not repos_root:
+            raise SVNError("Repository root not found; cannot create branch")
+
+        # Construct target branch URL
+        branch_url = f"{repos_root.rstrip('/')}/branches/{branch_name}"
+
+        # Get the current working copy URL to copy from
+        result = self._run(["info", "--show-item", "url"], check=True)
+        current_url = result.stdout.strip()
+        if not current_url:
+            raise SVNError("Current URL could not be determined for branch creation")
+
+        # Perform server-side copy to create the branch with a message
+        self._run(["copy", current_url, branch_url, "-m", f"Create branch {branch_name}"], check=True)
+
+    def _get_repository_root_url(self) -> str:
+        """Return the repository root URL (e.g. https://.../svn/project).
+
+        Tries the portable `--show-item repos-root-url` first and falls
+        back to parsing `svn info` output.
+        """
+        # First try the succinct option
+        result = self._run(["info", "--show-item", "repos-root-url"], check=False)
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+
+        # Fallback: parse the verbose `svn info` output
+        result = self._run(["info"], check=True)
+        for line in result.stdout.splitlines():
+            if line.lower().startswith("repository root:"):
+                return line.split(":", 1)[1].strip()
+
+        raise SVNError("Repository root URL not found in svn info")
 
     # ------------------------------------------------------------------
     # File operations

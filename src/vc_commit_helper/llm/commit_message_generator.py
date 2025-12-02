@@ -60,12 +60,18 @@ class CommitMessageGenerator:
             You are an expert software engineer tasked with writing commit messages.
             Generate a commit message for the following changes.
             The message MUST start with [{group_type}]: followed by a short description.
-            Then provide a detailed body summarising what changed.
+            Then provide a brief 1-2 sentence "Functional impact" summary that explains
+            the runtime/behavioural impact of the change (what will happen when this
+            change is applied). Place this functional impact summary before the
+            detailed file list or body.
+            Finally, provide a detailed body summarising what changed.
             The message should be clear and concise.
 
             Example format:
             [{group_type}]: short description of the change
-            
+
+            Functional impact: One- or two-sentence summary of behavioural impact.
+
             Detailed explanation of what was changed and why.
 
             {diff_summary}
@@ -151,9 +157,14 @@ class CommitMessageGenerator:
                     group_type,
                     exc,
                 )
-                # Fallback: simple message with correct format
+                # Fallback: simple message with correct format and a short
+                # deterministic functional impact summary placed before the file list.
                 subject = f"[{group_type}]: update {len(files)} file{'s' if len(files) != 1 else ''}"
+                impact = (
+                    f"Functional impact: Changes {len(files)} file{'s' if len(files) != 1 else ''}. "
+                    "Review the file list for affected areas and potential behaviour changes."
+                )
                 body_lines = [f"- {file}" for file in files]
-                message = subject + "\n\n" + "\n".join(body_lines)
+                message = subject + "\n\n" + impact + "\n\n" + "\n".join(body_lines)
             commit_groups.append(CommitGroup(type=group_type, files=files, message=message, diffs={file: diffs[file] for file in files}))
         return commit_groups
