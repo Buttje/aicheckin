@@ -5,7 +5,7 @@
 ![Issues](https://img.shields.io/badge/issues-github-red)
 ![CI](https://img.shields.io/badge/CI-passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)
-![CodeQL Advanced](https://github.com/Buttje/aicheckin/actions/workflows/codeql.yml/badge.svg)](https://github.com/Buttje/aicheckin/actions/workflows/codeql.yml)
+![CodeQL Advanced](https://github.com/Buttje/aicheckin/actions/workflows/codeql.yml/badge.svg)
 
 ## Short description
 
