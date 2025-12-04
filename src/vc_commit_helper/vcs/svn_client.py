@@ -284,7 +284,17 @@ class SVNClient:
             The commit message.
         files : List[str]
             Files to include in the commit.
+        
+        Raises
+        ------
+        SVNError
+            If files list is empty or commit fails.
         """
+        # Validate that we have files to commit
+        if not files:
+            raise SVNError("Cannot commit: files list is empty")
+        
         # Build commit command: specify files and message
-        args = ["commit", "-m", message] + ["--"] + files
+        # Note: -- separates options from file paths
+        args = ["commit", "-m", message, "--"] + files
         self._run(args, check=True)
