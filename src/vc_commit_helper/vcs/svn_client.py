@@ -270,7 +270,9 @@ class SVNClient:
         for file in files:
             status = statuses.get(file, "M")
             if status == "A":
-                self._run(["add", "--", file], check=True)
+                # Use --force to skip files that are already versioned
+                # This prevents errors when parent directories are already under version control
+                self._run(["add", "--force", "--", file], check=True)
             elif status == "D":
                 self._run(["delete", "--", file], check=True)
             # Modified files need no explicit staging
