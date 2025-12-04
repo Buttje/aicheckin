@@ -86,8 +86,8 @@ If you prefer to install manually or need more control:
 
 ## Configuration
 
-The tool expects a file named `.ollama_config.json` in the aicheckin 
-installation directory. This file defines how to connect to your local 
+The tool expects a file named `.ollama_config.json` in the aicheckin
+installation directory. This file defines how to connect to your local
 Ollama server. 
 
 **Note:** If you used `python install.py`, the configuration file
