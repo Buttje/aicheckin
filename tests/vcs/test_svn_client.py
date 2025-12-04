@@ -3,7 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from vc_commit_helper.vcs.svn_client import FileChange, SVNClient
+from vc_commit_helper.vcs.svn_client import FileChange, SVNClient, SVNError
 
 
 class DummyProc(SimpleNamespace):
@@ -57,8 +57,6 @@ class TestSVNClient(unittest.TestCase):
 
     def test_commit_with_empty_files_list_raises_error(self) -> None:
         """Test that commit raises SVNError when files list is empty."""
-        from vc_commit_helper.vcs.svn_client import SVNError
-        
         client = SVNClient(Path("/repo"))
         with self.assertRaises(SVNError) as cm:
             client.commit("Test message", [])
