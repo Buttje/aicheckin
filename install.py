@@ -377,13 +377,13 @@ def setup_path(has_path_warning: bool) -> bool:
 
 
 def setup_config() -> bool:
-    """Set up the Ollama configuration file.
+    """Set up the Ollama configuration file in the user's home directory.
     
     Returns:
         True if successful, False otherwise.
     """
-    install_dir = Path(__file__).parent / "src" / "vc_commit_helper"
-    config_path = install_dir / ".ollama_config.json"
+    config_dir = Path.home() / ".ollama_server"
+    config_path = config_dir / ".ollama_config.json"
     
     if config_path.exists():
         print_success(f"Configuration file already exists")
@@ -432,7 +432,7 @@ def setup_config() -> bool:
             config["max_tokens"] = int(max_tokens)
         
         # Create directory if it doesn't exist
-        install_dir.mkdir(parents=True, exist_ok=True)
+        config_dir.mkdir(parents=True, exist_ok=True)
         
         # Write config file
         with open(config_path, "w", encoding="utf-8") as f:

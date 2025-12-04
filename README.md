@@ -86,13 +86,13 @@ If you prefer to install manually or need more control:
 
 ## Configuration
 
-The tool expects a file named `.ollama_config.json` in the aicheckin
-installation directory. This file defines how to connect to your local
-Ollama server. 
+The tool expects a file named `.ollama_config.json` in the 
+`~/.ollama_server/` directory in your home directory. This file defines 
+how to connect to your local Ollama server. 
 
 **Note:** If you used `python install.py`, the configuration file
-is created automatically during installation. If you need to modify it
-later, the installer will display the exact location where it was created.
+is created automatically during installation in `~/.ollama_server/`. 
+This location is user-specific and easy to find.
 
 For manual setup, the required keys are:
 
@@ -152,7 +152,8 @@ Options:
    are present at the same level, it exits with an error. If neither
    is found, it exits with code 3.
 2. **Configuration** – The tool looks for `.ollama_config.json` in
-   the repository root. If the file is missing or malformed, it
+   the `~/.ollama_server/` directory. If the file is missing or 
+   malformed, it
    prints an error and exits with code 5.
 3. **Change detection** – It computes the status of your working
    copy against `HEAD` (Git) or `BASE` (SVN). Untracked/unversioned
