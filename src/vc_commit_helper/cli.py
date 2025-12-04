@@ -20,6 +20,7 @@ from typing import Dict, List, Optional, Tuple
 
 import click
 
+from vc_commit_helper import __version__
 from vc_commit_helper.config.loader import ConfigError, load_config
 from vc_commit_helper.diff.diff_extractor import extract_diffs
 from vc_commit_helper.grouping.group_model import CommitGroup
@@ -363,6 +364,7 @@ def prompt_user(group: CommitGroup, group_num: int, total_groups: int) -> Option
 @click.option("--yes", "yes", is_flag=True, help="Accept all generated commit groups without prompting.")
 @click.option("--vcs", type=click.Choice(["git", "svn"]), help="Force the VCS type (git or svn).")
 @click.option("--verbose", is_flag=True, help="Enable verbose (debug) output.")
+@click.version_option(version=__version__, prog_name="aicheckin")
 def main(yes: bool, vcs: Optional[str], verbose: bool) -> None:
     """🚀 AI-powered commit assistant for Git and SVN repositories.
     
