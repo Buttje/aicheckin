@@ -1,0 +1,16 @@
+[flake8]
+exclude =
+    .git,
+    __pycache__,
+    .pytest_cache,
+    .mypy_cache,
+    venv,
+    .venv,
+    Lib,
+    lib,
+    build,
+    dist,
+    *.egg-info,
+    .eggs
+max-line-length = 127
+max-complexity = 10
