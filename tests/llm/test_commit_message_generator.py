@@ -40,7 +40,7 @@ class TestCommitMessageGenerator(unittest.TestCase):
         
         self.assertEqual(len(groups), 1)
         self.assertIn("[test]:", groups[0].message)
-        self.assertIn("update 1 file", groups[0].message)
+        self.assertIn("Changes to 1 file", groups[0].message)
 
 
 if __name__ == "__main__":

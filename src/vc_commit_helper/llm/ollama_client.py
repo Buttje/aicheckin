@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -29,6 +30,52 @@ class LLMError(Exception):
     """Raised when communication with the LLM server fails."""
 
     pass
+
+
+def strip_thinking_tags(text: str) -> str:
+    """Remove thinking process tags from LLM responses.
+    
+    Many modern LLMs with reasoning capabilities output their thinking
+    process in XML-like tags such as <think>, <thinking>, <thought>,
+    or <reasoning>. This function strips these tags and their contents
+    from the response, leaving only the actual output.
+    
+    Parameters
+    ----------
+    text : str
+        The raw LLM response text.
+    
+    Returns
+    -------
+    str
+        The text with all thinking tags removed.
+    
+    Examples
+    --------
+    >>> strip_thinking_tags("<think>reasoning...</think>Answer")
+    'Answer'
+    >>> strip_thinking_tags("<thinking>thoughts</thinking>\\n\\nReal answer")
+    'Real answer'
+    """
+    # Common thinking tags used by various LLMs
+    # Pattern matches opening tag, content (non-greedy), and closing tag
+    # Case-insensitive and handles multiline content with re.DOTALL
+    thinking_patterns = [
+        r'<think>.*?</think>',
+        r'<thinking>.*?</thinking>',
+        r'<thought>.*?</thought>',
+        r'<reasoning>.*?</reasoning>',
+    ]
+    
+    result = text
+    for pattern in thinking_patterns:
+        # Use DOTALL to match across newlines, IGNORECASE for case-insensitive matching
+        result = re.sub(pattern, '', result, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Clean up any extra whitespace left behind
+    result = result.strip()
+    
+    return result
 
 
 @dataclass
@@ -116,8 +163,12 @@ class OllamaClient:
         # the generated text when stream=False. If using /api/chat, 'message'
         # would contain the assistant content.
         if "response" in data:
-            return data.get("response", "").strip()
+            raw_response = data.get("response", "").strip()
+            # Filter out thinking process tags before returning
+            return strip_thinking_tags(raw_response)
         if "message" in data and isinstance(data["message"], dict):
-            return data["message"].get("content", "").strip()
+            raw_response = data["message"].get("content", "").strip()
+            # Filter out thinking process tags before returning
+            return strip_thinking_tags(raw_response)
         # If none of the expected fields are present, raise an error
         raise LLMError("Unexpected response structure from LLM")
