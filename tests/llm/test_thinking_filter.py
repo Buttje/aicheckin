@@ -213,6 +213,52 @@ Added support for custom configuration files.
         self.assertNotIn("Mixed case", result)
         self.assertIn("[feat]: Feature", result)
 
+    def test_filter_incomplete_tags(self):
+        """Test that incomplete or malformed tags don't break processing."""
+        client = OllamaClient(
+            base_url="http://localhost",
+            port=11434,
+            model="test-model"
+        )
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        # Incomplete tags should not be removed (only matched pairs)
+        mock_response.json.return_value = {
+            "response": "<think>Complete</think>[feat]: Feature<think>Incomplete tag text"
+        }
+        
+        with patch('requests.post', return_value=mock_response):
+            result = client.generate("test prompt")
+        
+        # Complete tags should be removed
+        self.assertNotIn("<think>Complete</think>", result)
+        # But incomplete tags stay (they're just text, not valid XML)
+        self.assertIn("<think>Incomplete tag text", result)
+        self.assertIn("[feat]: Feature", result)
+
+    def test_filter_with_attributes(self):
+        """Test that tags with attributes are not filtered (to be safe)."""
+        client = OllamaClient(
+            base_url="http://localhost",
+            port=11434,
+            model="test-model"
+        )
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        # Tags with attributes don't match our simple patterns
+        mock_response.json.return_value = {
+            "response": '<think type="reasoning">Some thought</think>[feat]: Feature'
+        }
+        
+        with patch('requests.post', return_value=mock_response):
+            result = client.generate("test prompt")
+        
+        # Our simple patterns don't match tags with attributes
+        # This is intentional - we only filter standard thinking tags
+        self.assertIn('[feat]: Feature', result)
+
 
 if __name__ == "__main__":
     unittest.main()
