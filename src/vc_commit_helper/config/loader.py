@@ -2,9 +2,9 @@
 Configuration loader for vc_commit_helper.
 
 The tool expects a JSON configuration file named ``.ollama_config.json``
-located in the installation directory of aicheckin. This loader validates the
-structure of the configuration and returns a dictionary containing
-settings for connecting to an Ollama server.
+located in the ``~/.ollama_server/`` directory in the user's home directory.
+This loader validates the structure of the configuration and returns a 
+dictionary containing settings for connecting to an Ollama server.
 
 If the configuration file is missing, malformed, or missing required
 keys, a :class:`ConfigError` is raised.
@@ -39,46 +39,31 @@ class ConfigError(Exception):
     pass
 
 
-def _get_install_directory() -> Path:
-    """Get the installation directory of aicheckin.
+def _get_config_directory() -> Path:
+    """Get the configuration directory for aicheckin.
     
-    Returns the directory where the aicheckin package is installed.
-    This works for both development installations and installed packages.
+    Returns the directory where the aicheckin configuration is stored.
+    This is now a user-specific directory: ~/.ollama_server/
     
-    For editable installs, this returns the source directory.
-    For regular installs, this returns the site-packages directory.
+    Returns:
+        Path to the ~/.ollama_server/ directory.
     """
-    # Get the directory of this module file (__file__ points to loader.py)
-    # loader.py is in: src/vc_commit_helper/config/loader.py
-    # We want: src/vc_commit_helper/
-    module_dir = Path(__file__).parent.parent
-    
-    # Check if we're in an editable install (source directory)
-    # In editable mode, the config should be in the source tree
-    config_in_source = module_dir / ".ollama_config.json"
-    if config_in_source.exists():
-        return module_dir
-    
-    # Check if we're in a regular install (site-packages)
-    # The config should still be in the package directory
-    if (module_dir / "__init__.py").exists():
-        return module_dir
-    
-    # Fallback: return the module directory
-    return module_dir
+    # Return the user's home directory + .ollama_server
+    config_dir = Path.home() / ".ollama_server"
+    return config_dir
 
 
 def load_config(repo_root: Optional[Path] = None) -> Dict[str, Any]:
-    """Load the Ollama configuration from the installation directory and return it.
+    """Load the Ollama configuration from the user's home directory and return it.
 
     The configuration is read from a file named ``.ollama_config.json``
-    located in the aicheckin installation directory. If the file is missing, 
+    located in the ``~/.ollama_server/`` directory. If the file is missing, 
     malformed, missing required keys, or has fields of the wrong type, a
     :class:`ConfigError` is raised.
     
     Args:
         repo_root: Deprecated parameter, kept for backward compatibility.
-                   The configuration is now loaded from the installation directory.
+                   The configuration is now loaded from ~/.ollama_server/ directory.
     
     Returns:
         A dictionary containing the validated configuration with keys:
@@ -91,14 +76,14 @@ def load_config(repo_root: Optional[Path] = None) -> Dict[str, Any]:
     Raises:
         ConfigError: If the configuration file is missing, malformed, or invalid.
     """
-    install_dir = _get_install_directory()
-    config_path = install_dir / ".ollama_config.json"
+    config_dir = _get_config_directory()
+    config_path = config_dir / ".ollama_config.json"
     
     if not config_path.exists():
         logger.error("Configuration file '%s' does not exist", config_path)
         raise ConfigError(
             f"Missing Ollama configuration file: {config_path}. "
-            f"Expected location: {install_dir}\n"
+            f"Expected location: {config_dir}\n"
             f"Please run the installer again or create the config file manually."
         )
     

@@ -12,7 +12,7 @@ class TestConfigLoader(unittest.TestCase):
 
     def test_load_config_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            install_dir = Path(tmp)
+            config_dir = Path(tmp)
             config = {
                 "base_url": "http://localhost",
                 "port": 11434,
@@ -20,10 +20,10 @@ class TestConfigLoader(unittest.TestCase):
                 "request_timeout": 30,
                 "max_tokens": 512,
             }
-            (install_dir / ".ollama_config.json").write_text(json.dumps(config))
+            (config_dir / ".ollama_config.json").write_text(json.dumps(config))
             
-            # Mock the _get_install_directory function to return our temp dir
-            with patch('vc_commit_helper.config.loader._get_install_directory', return_value=install_dir):
+            # Mock the _get_config_directory function to return our temp dir
+            with patch('vc_commit_helper.config.loader._get_config_directory', return_value=config_dir):
                 result = load_config()
                 self.assertEqual(result["base_url"], "http://localhost")
                 self.assertEqual(result["port"], 11434)
@@ -33,24 +33,24 @@ class TestConfigLoader(unittest.TestCase):
 
     def test_load_config_missing_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            install_dir = Path(tmp)
-            with patch('vc_commit_helper.config.loader._get_install_directory', return_value=install_dir):
+            config_dir = Path(tmp)
+            with patch('vc_commit_helper.config.loader._get_config_directory', return_value=config_dir):
                 with self.assertRaises(ConfigError):
                     load_config()
 
     def test_load_config_invalid_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            install_dir = Path(tmp)
-            (install_dir / ".ollama_config.json").write_text("{invalid}")
-            with patch('vc_commit_helper.config.loader._get_install_directory', return_value=install_dir):
+            config_dir = Path(tmp)
+            (config_dir / ".ollama_config.json").write_text("{invalid}")
+            with patch('vc_commit_helper.config.loader._get_config_directory', return_value=config_dir):
                 with self.assertRaises(ConfigError):
                     load_config()
 
     def test_load_config_missing_keys(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            install_dir = Path(tmp)
-            (install_dir / ".ollama_config.json").write_text(json.dumps({"base_url": "http://", "port": 1}))
-            with patch('vc_commit_helper.config.loader._get_install_directory', return_value=install_dir):
+            config_dir = Path(tmp)
+            (config_dir / ".ollama_config.json").write_text(json.dumps({"base_url": "http://", "port": 1}))
+            with patch('vc_commit_helper.config.loader._get_config_directory', return_value=config_dir):
                 with self.assertRaises(ConfigError):
                     load_config()
 

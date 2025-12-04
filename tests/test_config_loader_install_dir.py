@@ -1,31 +1,28 @@
-"""Tests for _get_install_directory edge cases."""
+"""Tests for _get_config_directory edge cases."""
 
 import unittest
 from pathlib import Path
 
-from vc_commit_helper.config.loader import _get_install_directory
+from vc_commit_helper.config.loader import _get_config_directory
 
 
-class TestGetInstallDirectory(unittest.TestCase):
-    """Tests for _get_install_directory function."""
+class TestGetConfigDirectory(unittest.TestCase):
+    """Tests for _get_config_directory function."""
 
-    def test_get_install_directory_returns_path(self):
-        """Test that _get_install_directory returns a Path object."""
-        result = _get_install_directory()
+    def test_get_config_directory_returns_path(self):
+        """Test that _get_config_directory returns a Path object."""
+        result = _get_config_directory()
         self.assertIsInstance(result, Path)
-        self.assertTrue(result.exists())
+        # The directory should be ~/.ollama_server
+        self.assertEqual(result, Path.home() / ".ollama_server")
         
-    def test_get_install_directory_has_init_file(self):
-        """Test that the install directory has __init__.py (covers line 64-65)."""
-        result = _get_install_directory()
-        # This tests the check at line 64-65
-        init_file = result / "__init__.py"
-        # The directory should either have config or __init__.py
-        config_file = result / ".ollama_config.json"
-        self.assertTrue(
-            config_file.exists() or init_file.exists(),
-            "Install directory should have either config or __init__.py"
-        )
+    def test_get_config_directory_points_to_home(self):
+        """Test that the config directory is in user's home directory."""
+        result = _get_config_directory()
+        # Verify that the path starts with user's home directory
+        self.assertTrue(str(result).startswith(str(Path.home())))
+        # Verify the directory name is .ollama_server
+        self.assertEqual(result.name, ".ollama_server")
 
 
 if __name__ == "__main__":
