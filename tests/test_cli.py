@@ -62,7 +62,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn(__version__, result.output)
         self.assertIn("aicheckin", result.output)
-    
+
     def test_cli_no_changes(self) -> None:
         runner = CliRunner()
         with patch.object(cli, "detect_vcs", return_value=("git", Path("/repo"))):
