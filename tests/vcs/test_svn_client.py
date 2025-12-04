@@ -55,6 +55,52 @@ class TestSVNClient(unittest.TestCase):
             client.commit("message", ["file1.txt", "file2.txt"])
             self.assertIn(["commit", "-m", "message", "--", "file1.txt", "file2.txt"], calls)
 
+    def test_commit_with_empty_files_list_raises_error(self) -> None:
+        """Test that commit raises SVNError when files list is empty."""
+        from vc_commit_helper.vcs.svn_client import SVNError
+        
+        client = SVNClient(Path("/repo"))
+        with self.assertRaises(SVNError) as cm:
+            client.commit("Test message", [])
+        
+        self.assertIn("files list is empty", str(cm.exception))
+
+    def test_commit_with_multiline_message(self) -> None:
+        """Test that commit works with multiline messages."""
+        calls = []
+
+        def fake_run(self, args, check=True):
+            calls.append(args)
+            return DummyProc(returncode=0, stdout="", stderr="")
+
+        with patch.object(SVNClient, "_run", autospec=True) as mock_run:
+            mock_run.side_effect = fake_run
+            client = SVNClient(Path("/repo"))
+            
+            multiline_msg = "First line\nSecond line\nThird line"
+            client.commit(multiline_msg, ["file1.txt"])
+            
+            # Verify the command was constructed correctly
+            self.assertEqual(calls[-1], ["commit", "-m", multiline_msg, "--", "file1.txt"])
+
+    def test_commit_with_special_characters(self) -> None:
+        """Test that commit works with special characters in message."""
+        calls = []
+
+        def fake_run(self, args, check=True):
+            calls.append(args)
+            return DummyProc(returncode=0, stdout="", stderr="")
+
+        with patch.object(SVNClient, "_run", autospec=True) as mock_run:
+            mock_run.side_effect = fake_run
+            client = SVNClient(Path("/repo"))
+            
+            special_msg = "Fix: <tag> & 'quotes' \"and\" $vars"
+            client.commit(special_msg, ["file1.txt", "file2.txt"])
+            
+            # Verify the command was constructed correctly
+            self.assertEqual(calls[-1], ["commit", "-m", special_msg, "--", "file1.txt", "file2.txt"])
+
 
 if __name__ == "__main__":
     unittest.main()
