@@ -16,3 +16,5 @@ slides/
 .venv/
 Lib/
 pyvenv.cfg
+.coverage
+htmlcov/
