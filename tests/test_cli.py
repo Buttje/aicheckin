@@ -6,6 +6,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 import vc_commit_helper.cli as cli
+from vc_commit_helper import __version__
 
 
 class DummyGitClient:
@@ -54,6 +55,14 @@ class DummyGenerator:
 
 
 class TestCLI(unittest.TestCase):
+    def test_cli_version_flag(self) -> None:
+        """Test that --version flag displays the correct version."""
+        runner = CliRunner()
+        result = runner.invoke(cli.main, ["--version"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn(__version__, result.output)
+        self.assertIn("aicheckin", result.output)
+    
     def test_cli_no_changes(self) -> None:
         runner = CliRunner()
         with patch.object(cli, "detect_vcs", return_value=("git", Path("/repo"))):
