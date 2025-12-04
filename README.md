@@ -6,6 +6,7 @@
 ![CI](https://img.shields.io/badge/CI-passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)
 ![CodeQL Advanced](https://github.com/Buttje/aicheckin/actions/workflows/codeql.yml/badge.svg)
+![Python package](https://github.com/Buttje/aicheckin/actions/workflows/python-package.yml/badge.svg)
 
 ## Short description
 
