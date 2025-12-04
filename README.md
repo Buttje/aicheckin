@@ -87,11 +87,11 @@ If you prefer to install manually or need more control:
 ## Configuration
 
 The tool expects a file named `.ollama_config.json` in the installation 
-directory (`src/vc_commit_helper/`). This file defines how to 
-connect to your local Ollama server. 
+directory (`src/vc_commit_helper/` relative to the project root). This 
+file defines how to connect to your local Ollama server. 
 
 **Note:** If you used `python install.py`, the configuration file
-is created automatically during installation in the correct location.
+is created automatically during installation in `src/vc_commit_helper/.ollama_config.json`.
 
 For manual setup, the required keys are:
 
