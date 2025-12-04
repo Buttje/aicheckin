@@ -48,8 +48,8 @@ class TestSVNClient(unittest.TestCase):
             client = SVNClient(Path("/repo"))
             statuses = {"new.txt": "A", "gone.txt": "D"}
             client.stage_files(["new.txt", "changed.txt", "gone.txt"], statuses=statuses)
-            # After staging, expect add and delete calls
-            self.assertIn(["add", "--", "new.txt"], calls)
+            # After staging, expect add (with --force) and delete calls
+            self.assertIn(["add", "--force", "--", "new.txt"], calls)
             self.assertIn(["delete", "--", "gone.txt"], calls)
             calls.clear()
             client.commit("message", ["file1.txt", "file2.txt"])
@@ -98,6 +98,36 @@ class TestSVNClient(unittest.TestCase):
             
             # Verify the command was constructed correctly
             self.assertEqual(calls[-1], ["commit", "-m", special_msg, "--", "file1.txt", "file2.txt"])
+
+    def test_stage_files_with_force_flag_prevents_already_versioned_error(self) -> None:
+        """Test that stage_files uses --force flag to handle already-versioned files."""
+        calls = []
+
+        def fake_run(self, args, check=True):
+            calls.append(args)
+            # Simulate that without --force, adding already-versioned files would fail
+            # With --force, SVN will skip already-versioned files gracefully
+            if args[0] == "add" and "--force" in args:
+                return DummyProc(returncode=0, stdout="", stderr="")
+            elif args[0] == "add" and "--force" not in args:
+                # This would be the error we're trying to avoid
+                return DummyProc(
+                    returncode=1,
+                    stdout="",
+                    stderr="svn: E200009: Could not add all targets because some targets are already versioned"
+                )
+            return DummyProc(returncode=0, stdout="", stderr="")
+
+        with patch.object(SVNClient, "_run", autospec=True) as mock_run:
+            mock_run.side_effect = fake_run
+            client = SVNClient(Path("/repo"))
+            
+            # This should work because --force is used
+            statuses = {"already_versioned.txt": "A"}
+            client.stage_files(["already_versioned.txt"], statuses=statuses)
+            
+            # Verify that --force flag was used
+            self.assertIn(["add", "--force", "--", "already_versioned.txt"], calls)
 
 
 if __name__ == "__main__":
