@@ -43,6 +43,27 @@ interactively or run in a non‑interactive mode for automation.
 
 ## Installation
 
+### Quick Install (Recommended)
+
+The easiest way to install `aicheckin` is using the automated installer:
+
+```bash
+python install.py
+```
+
+This script will:
+- Check your Python version (3.10+ required)
+- Install the package and its dependencies
+- Set up your system PATH automatically
+- Help you configure the Ollama connection interactively
+- Verify the installation
+
+After installation, you can use the `aicheckin` command from anywhere.
+
+### Manual Installation (Advanced)
+
+If you prefer to install manually or need more control:
+
 1. Create and activate a virtual environment (recommended):
 
    ```bash
@@ -67,7 +88,12 @@ interactively or run in a non‑interactive mode for automation.
 
 The tool expects a file named `.ollama_config.json` in the root of
 your repository. This file defines how to connect to your local
-Ollama server. The required keys are:
+Ollama server. 
+
+**Note:** If you used `python install.py`, the configuration file
+is created automatically during installation.
+
+For manual setup, the required keys are:
 
 ```json
 {
