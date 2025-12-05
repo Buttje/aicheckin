@@ -57,13 +57,17 @@ When a GitHub release is published, the CI/CD workflow automatically:
 
 **Initial state:**
 - Major version in code: `0`
-- Existing tags: `v0.1`, `v0.2`
+- Existing tags: none
 - Current commit: `abc1234`
-- Generated version: `0.2.dev0+gabc1234`
+- Generated version: `0.0.dev0+gabc1234`
 
-**After creating a release:**
-1. CI workflow creates tag `v0.3`
-2. Future builds will show version: `0.3.dev0+g{new_commit}`
+**After creating first release:**
+1. CI workflow creates tag `v0.0`
+2. Future builds will show version: `0.0.dev0+g{new_commit}`
+
+**After creating second release:**
+1. CI workflow creates tag `v0.1`
+2. Future builds will show version: `0.1.dev0+g{new_commit}`
 
 ### Changing the Major Version
 
@@ -72,7 +76,7 @@ To increment the major version (e.g., from `0` to `1`):
 1. Edit `src/vc_commit_helper/__init__.py`
 2. Change `__base_version__ = "0"` to `__base_version__ = "1"`
 3. Commit and push
-4. Create a release - this will create tag `v1.1` (starting minor version at 1)
+4. Create a release - this will create tag `v1.0` (starting minor version at 0)
 
 ## Tag Naming Convention
 

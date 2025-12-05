@@ -34,9 +34,9 @@ jobs:
                         sort -n | \
                         tail -1)
           
-          # If no tags exist, start with 1, otherwise increment
+          # If no tags exist, start with 0, otherwise increment
           if [ -z "$LATEST_MINOR" ]; then
-            NEW_MINOR=1
+            NEW_MINOR=0
           else
             NEW_MINOR=$((LATEST_MINOR + 1))
           fi
