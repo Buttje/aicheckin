@@ -1,6 +1,6 @@
 [project]
 name = "vc_commit_helper"
-version = "0.1.0"
+dynamic = ["version"]
 description = "AI‑powered commit assistant for Git and SVN repositories"
 authors = [
     { name = "Lutz Pape", email = "Lutz.Pape@gmail.com" },
@@ -36,6 +36,9 @@ aicheckin = "vc_commit_helper.cli:main"
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "vc_commit_helper.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
