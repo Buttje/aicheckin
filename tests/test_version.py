@@ -73,14 +73,31 @@ class TestVersionGeneration(unittest.TestCase):
 
     @patch("vc_commit_helper._version.subprocess.run")
     def test_get_minor_version_invalid_tags_ignored(self, mock_run):
-        """Test that invalid tags are ignored."""
+        """Test that invalid tags are ignored and tags from different major versions are filtered."""
         mock_result = MagicMock()
         mock_result.stdout = "v0.1\ninvalid\nv0.2\nv1.0\n"
         mock_run.return_value = mock_result
 
-        minor = get_minor_version_from_tags()
+        minor = get_minor_version_from_tags(major_version="0")
         # Should return 2 (from v0.2), ignoring v1.0 which has different major version
         self.assertEqual(minor, 2)
+
+    @patch("vc_commit_helper._version.subprocess.run")
+    def test_get_minor_version_filters_by_major(self, mock_run):
+        """Test that get_minor_version_from_tags filters by major version."""
+        mock_result = MagicMock()
+        mock_result.stdout = "v0.1\nv0.5\nv1.2\nv1.8\n"
+        mock_run.return_value = mock_result
+
+        # Should only consider v0.* tags
+        minor = get_minor_version_from_tags(major_version="0")
+        self.assertEqual(minor, 5)
+        
+        # Now test with major version 1
+        mock_result.stdout = "v0.1\nv0.5\nv1.2\nv1.8\n"
+        mock_run.return_value = mock_result
+        minor = get_minor_version_from_tags(major_version="1")
+        self.assertEqual(minor, 8)
 
     @patch("vc_commit_helper._version.subprocess.run")
     def test_get_minor_version_returns_zero_on_error(self, mock_run):

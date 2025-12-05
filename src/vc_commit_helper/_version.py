@@ -6,8 +6,8 @@ The version is composed of:
 - Minor version: Derived from git tags (number of release tags)
 - Build number: Git commit short SHA
 
-Format: {major}.{minor}.{commit_sha}
-Example: 0.5.a1b2c3d
+Format: {major}.{minor}.dev0+g{commit_sha}
+Example: 0.5.dev0+g1fbcb8c
 """
 
 import subprocess
@@ -42,24 +42,25 @@ def get_git_commit_sha(repo_path: Optional[Path] = None) -> str:
         return "unknown"
 
 
-def get_minor_version_from_tags(repo_path: Optional[Path] = None) -> int:
+def get_minor_version_from_tags(repo_path: Optional[Path] = None, major_version: str = "0") -> int:
     """
-    Get the minor version by counting release tags.
+    Get the minor version by counting release tags for the given major version.
     
     Tags should follow the pattern: v{major}.{minor} (e.g., v0.1, v0.2)
-    The minor version is the highest minor number found in tags.
+    The minor version is the highest minor number found in tags matching the major version.
     
     Args:
         repo_path: Path to the repository root. If None, uses current directory.
+        major_version: The major version to filter tags by (default: "0").
     
     Returns:
         The minor version number (0 if no tags found).
     """
     try:
         if repo_path:
-            cmd = ["git", "-C", str(repo_path), "tag", "-l", "v*"]
+            cmd = ["git", "-C", str(repo_path), "tag", "-l", f"v{major_version}.*"]
         else:
-            cmd = ["git", "tag", "-l", "v*"]
+            cmd = ["git", "tag", "-l", f"v{major_version}.*"]
         
         result = subprocess.run(
             cmd,
@@ -74,15 +75,15 @@ def get_minor_version_from_tags(repo_path: Optional[Path] = None) -> int:
         for tag in tags:
             if not tag:
                 continue
-            # Parse tags like v0.1, v0.2, etc.
-            if tag.startswith('v'):
-                parts = tag[1:].split('.')
-                if len(parts) >= 2:
-                    try:
-                        minor = int(parts[1])
-                        minor_versions.append(minor)
-                    except ValueError:
-                        continue
+            # Parse tags like v0.1, v0.2, etc. matching the major version
+            expected_prefix = f"v{major_version}."
+            if tag.startswith(expected_prefix):
+                minor_str = tag[len(expected_prefix):]
+                try:
+                    minor = int(minor_str)
+                    minor_versions.append(minor)
+                except ValueError:
+                    continue
         
         return max(minor_versions) if minor_versions else 0
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -98,17 +99,15 @@ def generate_version(base_version: str, repo_path: Optional[Path] = None) -> str
         repo_path: Path to the repository root. If None, uses current directory.
     
     Returns:
-        Full version string in format: {major}.{minor}.dev{commit_sha}
+        Full version string in format: {major}.{minor}.dev0+g{commit_sha}
         This is PEP 440 compliant as a development release.
     """
-    minor = get_minor_version_from_tags(repo_path)
+    minor = get_minor_version_from_tags(repo_path, base_version)
     commit_sha = get_git_commit_sha(repo_path)
     
-    # For PEP 440 compliance, use the format: major.minor.dev0+git.commit_sha
-    # Or simpler: major.minor.devN where N can include the commit info
-    # Using .dev format with commit_sha as local version identifier
+    # PEP 440 compliant format using local version identifier
     if commit_sha == "unknown":
         return f"{base_version}.{minor}.dev0"
     else:
-        # Convert hex sha to decimal for PEP 440 compliance
+        # Use git commit SHA as local version identifier with 'g' prefix
         return f"{base_version}.{minor}.dev0+g{commit_sha}"

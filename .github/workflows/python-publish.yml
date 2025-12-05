@@ -21,9 +21,10 @@ jobs:
           python-version: "3.x"
 
       - name: Increment minor version tag
+        shell: bash
         run: |
           # Get the current major version from __init__.py
-          MAJOR_VERSION=$(grep -oP '__base_version__ = "\K[^"]+' src/vc_commit_helper/__init__.py)
+          MAJOR_VERSION=$(grep -E '__base_version__ = "[^"]+"' src/vc_commit_helper/__init__.py | sed 's/.*"\(.*\)".*/\1/')
           
           # Get the highest minor version from existing tags
           LATEST_MINOR=$(git tag -l "v${MAJOR_VERSION}.*" | sed "s/v${MAJOR_VERSION}\.//" | sort -n | tail -1)
