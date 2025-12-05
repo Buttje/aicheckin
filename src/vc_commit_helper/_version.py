@@ -69,7 +69,11 @@ def get_minor_version_from_tags(repo_path: Optional[Path] = None, major_version:
             check=True
         )
         
-        tags = result.stdout.strip().split('\n')
+        output = result.stdout.strip()
+        if not output:
+            return 0
+            
+        tags = output.split('\n')
         minor_versions = []
         
         for tag in tags:

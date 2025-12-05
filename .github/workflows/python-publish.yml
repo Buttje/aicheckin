@@ -24,12 +24,17 @@ jobs:
         shell: bash
         run: |
           # Get the current major version from __init__.py
-          MAJOR_VERSION=$(grep -E '__base_version__ = "[^"]+"' src/vc_commit_helper/__init__.py | sed 's/.*"\(.*\)".*/\1/')
+          MAJOR_VERSION=$(grep '__base_version__ = ' src/vc_commit_helper/__init__.py | sed 's/.*= "\([^"]*\)".*/\1/')
           
-          # Get the highest minor version from existing tags
-          LATEST_MINOR=$(git tag -l "v${MAJOR_VERSION}.*" | sed "s/v${MAJOR_VERSION}\.//" | sort -n | tail -1)
+          # Get the highest minor version from existing tags (only numeric minors)
+          # Filter tags by major version pattern and extract numeric minor versions
+          LATEST_MINOR=$(git tag -l "v${MAJOR_VERSION}.*" | \
+                        sed "s/^v${MAJOR_VERSION}\.//" | \
+                        grep -E '^[0-9]+$' | \
+                        sort -n | \
+                        tail -1)
           
-          # If no tags exist, start with 0, otherwise increment
+          # If no tags exist, start with 1, otherwise increment
           if [ -z "$LATEST_MINOR" ]; then
             NEW_MINOR=1
           else
